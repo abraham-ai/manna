@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+const hre = require("hardhat");
 import { MannaToken } from "../typechain-types";
 
 describe("MannaToken", function () {
@@ -7,8 +7,8 @@ describe("MannaToken", function () {
   let owner: any, addr1: any, addr2: any;
 
   beforeEach(async function () {
-    const MannaToken = await ethers.getContractFactory("MannaToken");
-    [owner, addr1, addr2] = await ethers.getSigners();
+    const MannaToken = await hre.ethers.getContractFactory("MannaToken");
+    [owner, addr1, addr2] = await hre.ethers.getSigners();
     mannaToken = (await MannaToken.deploy(owner.address)) as MannaToken;
   });
 
@@ -19,7 +19,7 @@ describe("MannaToken", function () {
 
   it("Should allow users to praise a creation", async function () {
     const creationId = 1;
-    const praiseAmount = ethers.parseEther("10");
+    const praiseAmount = hre.ethers.parseEther("10");
 
     await mannaToken.transfer(addr1.address, praiseAmount);
     await mannaToken.connect(addr1).praise(creationId, praiseAmount);
@@ -30,7 +30,7 @@ describe("MannaToken", function () {
 
   it("Should emit a Praised event when praising a creation", async function () {
     const creationId = 1;
-    const praiseAmount = ethers.parseEther("10");
+    const praiseAmount = hre.ethers.parseEther("10");
 
     await mannaToken.transfer(addr1.address, praiseAmount);
     await expect(mannaToken.connect(addr1).praise(creationId, praiseAmount))
@@ -40,7 +40,7 @@ describe("MannaToken", function () {
 
   it("Should allow users to burn a creation", async function () {
     const creationId = 2;
-    const burnAmount = ethers.parseEther("5");
+    const burnAmount = hre.ethers.parseEther("5");
 
     await mannaToken.transfer(addr1.address, burnAmount);
     await mannaToken.connect(addr1).burn(creationId, burnAmount);
@@ -51,7 +51,7 @@ describe("MannaToken", function () {
 
   it("Should emit a Burned event when burning a creation", async function () {
     const creationId = 2;
-    const burnAmount = ethers.parseEther("5");
+    const burnAmount = hre.ethers.parseEther("5");
 
     await mannaToken.transfer(addr1.address, burnAmount);
     await expect(mannaToken.connect(addr1).burn(creationId, burnAmount))
@@ -69,7 +69,7 @@ describe("MannaToken", function () {
   });
 
   it("Should allow the owner to create art by burning tokens", async function () {
-    const createAmount = ethers.parseEther("20");
+    const createAmount = hre.ethers.parseEther("20");
 
     await mannaToken.transfer(owner.address, createAmount);
     await mannaToken.createArt(createAmount);
@@ -81,11 +81,49 @@ describe("MannaToken", function () {
   });
 
   it("Should revert if non-owner tries to create art", async function () {
-    const createAmount = ethers.parseEther("20");
+    const createAmount = hre.ethers.parseEther("20");
 
     await mannaToken.transfer(addr1.address, createAmount);
     //await expect(
     //  mannaToken.connect(addr1).createArt(createAmount)
     //).to.be.revertedWith("Ownable: caller is not the owner");
+  });
+
+  // New Tests for Buy and Sell Functionality
+  it("Should allow users to buy Manna with Ether", async function () {
+    const buyAmount = hre.ethers.parseEther("0.0001");
+    await mannaToken.connect(addr1).buyManna({ value: buyAmount });
+
+    const mannaBalance = await mannaToken.balanceOf(addr1.address);
+    const expectedMannaAmount = hre.ethers.parseUnits("1", 18); // 1 Manna token (assuming 18 decimals)
+    expect(mannaBalance).to.equal(expectedMannaAmount);
+  });
+
+  it("Should emit a BoughtManna event when buying Manna", async function () {
+    const buyAmount = hre.ethers.parseEther("0.0001");
+    await expect(mannaToken.connect(addr1).buyManna({ value: buyAmount }))
+      .to.emit(mannaToken, "BoughtManna")
+      .withArgs(addr1.address, hre.ethers.parseUnits("1", 18));
+  });
+
+  it("Should allow users to sell Manna for Ether", async function () {
+    const buyAmount = hre.ethers.parseEther("0.0001");
+    await mannaToken.connect(addr1).buyManna({ value: buyAmount });
+
+    const mannaAmount = hre.ethers.parseUnits("1", 18); // Selling 1 Manna token
+    await mannaToken.connect(addr1).sellManna(mannaAmount);
+
+    const addr1Balance = await hre.ethers.provider.getBalance(addr1.address);
+    expect(addr1Balance).to.be.gt(buyAmount); // The balance should increase after selling
+  });
+
+  it("Should emit a SoldManna event when selling Manna", async function () {
+    const buyAmount = hre.ethers.parseEther("0.0001");
+    await mannaToken.connect(addr1).buyManna({ value: buyAmount });
+
+    const mannaAmount = hre.ethers.parseUnits("1", 18); // Selling 1 Manna token
+    await expect(mannaToken.connect(addr1).sellManna(mannaAmount))
+      .to.emit(mannaToken, "SoldManna")
+      .withArgs(addr1.address, mannaAmount, buyAmount);
   });
 });
