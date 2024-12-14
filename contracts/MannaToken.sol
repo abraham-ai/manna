@@ -14,7 +14,6 @@ contract MannaToken is ERC20, Ownable {
     constructor(address initialOwner) ERC20("Manna", "MANNA") Ownable(initialOwner) {
         uint256 initialOwnerSupply = INITIAL_SUPPLY / 2;
         _mint(initialOwner, initialOwnerSupply);
-        // The rest can be minted via buyManna until cap is reached
     }
 
     function buyManna() external payable {
@@ -48,14 +47,9 @@ contract MannaToken is ERC20, Ownable {
         this.buyManna{value: msg.value}();
     }
 
-    /**
-     * @dev Allow another contract (like Abraham) to burn tokens on behalf of a user
-     * The user must have approved at least `amount` to `msg.sender` (the Abraham contract).
-     */
     function burnFrom(address account, uint256 amount) external {
         uint256 currentAllowance = allowance(account, msg.sender);
         require(currentAllowance >= amount, "ERC20: burn amount exceeds allowance");
-        // Decrease allowance before burning, to prevent double spending
         _approve(account, msg.sender, currentAllowance - amount);
         _burn(account, amount);
     }

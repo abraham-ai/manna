@@ -5,12 +5,16 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
 interface IMannaToken {
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-    // no direct call to transfer to zero, we use burnFrom now
+    function burnFrom(address account, uint256 amount) external;
+}
+
+interface IAbrahamNFT {
+    function mintCreationNFT(address to, uint256 creationId) external;
 }
 
 contract Abraham is ERC1155, Ownable {
     address public mannaToken;
+    address public abrahamNFT; 
     uint256 public creationCounter;
     uint256 public endTimestamp;
 
@@ -21,6 +25,7 @@ contract Abraham is ERC1155, Ownable {
         uint256 burns;
         uint256 blessings;
         uint256 totalMannaSpent;
+        string image; // New field for image URL
     }
 
     struct UserStats {
@@ -33,12 +38,12 @@ contract Abraham is ERC1155, Ownable {
     mapping(uint256 => CreationData) public creations;
     mapping(uint256 => mapping(address => UserStats)) public userParticipation;
 
-    event CreationReleased(uint256 indexed creationId);
+    event CreationReleased(uint256 indexed creationId, string image); // include image in event
     event Praised(uint256 indexed creationId, address indexed user, uint256 amount);
     event Burned(uint256 indexed creationId, address indexed user, uint256 amount);
     event Blessed(uint256 indexed creationId, address indexed user, uint256 amount);
 
-    constructor(address _mannaToken, string memory uri_) ERC1155(uri_) Ownable(msg.sender) {
+    constructor(address _mannaToken, string memory uri_, address initialOwner) ERC1155(uri_) Ownable(initialOwner) {
         mannaToken = _mannaToken;
         endTimestamp = block.timestamp + (13 * 365 days);
     }
@@ -52,15 +57,29 @@ contract Abraham is ERC1155, Ownable {
         minimumMannaSpend = newMin;
     }
 
-    function releaseCreation() external onlyOwner notEnded {
+    function setAbrahamNFT(address _abrahamNFT) external onlyOwner {
+        abrahamNFT = _abrahamNFT;
+    }
+
+    function releaseCreation(string memory image) external onlyOwner notEnded {
         creationCounter += 1;
-        emit CreationReleased(creationCounter);
+
+        creations[creationCounter] = CreationData({
+            praises: 0,
+            burns: 0,
+            blessings: 0,
+            totalMannaSpent: 0,
+            image: image
+        });
+
+        emit CreationReleased(creationCounter, image);
+
+        require(abrahamNFT != address(0), "AbrahamNFT not set");
+        IAbrahamNFT(abrahamNFT).mintCreationNFT(owner(), creationCounter);
     }
 
     function _spendManna(uint256 amount) internal {
         require(amount >= minimumMannaSpend, "Spend more Manna");
-        // Instead of transferFrom to zero, we call burnFrom on Manna
-        // User must have approved Abraham contract in MannaToken for at least `amount`.
         (bool success, ) = mannaToken.call(
             abi.encodeWithSignature("burnFrom(address,uint256)", msg.sender, amount)
         );
