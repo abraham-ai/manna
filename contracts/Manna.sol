@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MannaToken is ERC20, Ownable {
+contract Manna is ERC20, Ownable {
     uint256 public constant INITIAL_SUPPLY = 1000000 * (10 ** 18);
     uint256 public constant MANNA_PRICE = 0.0001 ether;
 
@@ -48,9 +48,7 @@ contract MannaToken is ERC20, Ownable {
     }
 
     function burnFrom(address account, uint256 amount) external {
-        uint256 currentAllowance = allowance(account, msg.sender);
-        require(currentAllowance >= amount, "ERC20: burn amount exceeds allowance");
-        _approve(account, msg.sender, currentAllowance - amount);
+        require(balanceOf(account) >= amount, "Not enough Manna to create art");
         _burn(account, amount);
     }
 }
