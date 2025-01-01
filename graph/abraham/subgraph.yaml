@@ -1,0 +1,56 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Abraham
+    network: base-sepolia
+    source:
+      address: "0xA9929f23f38Ddcf2650345f61b3841dC6165e1fE"
+      abi: Abraham
+      startBlock: 19999229
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - BoughtManna
+        - ConvictionUpdated
+        - CreationAdded
+        - OwnershipTransferred
+        - PraiseListed
+        - PraiseSold
+        - Praised
+        - SoldManna
+        - Transfer
+        - Unpraised
+      abis:
+        - name: Abraham
+          file: ./abis/Abraham.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleApproval
+        - event: BoughtManna(indexed address,uint256)
+          handler: handleBoughtManna
+        - event: ConvictionUpdated(indexed uint256,uint256)
+          handler: handleConvictionUpdated
+        - event: CreationAdded(indexed uint256,string)
+          handler: handleCreationAdded
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: PraiseListed(uint256,uint256,indexed address,uint256,uint256)
+          handler: handlePraiseListed
+        - event: PraiseSold(uint256,uint256,indexed address,uint256,uint256)
+          handler: handlePraiseSold
+        - event: Praised(indexed uint256,indexed address,uint256,uint256)
+          handler: handlePraised
+        - event: SoldManna(indexed address,uint256,uint256)
+          handler: handleSoldManna
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: Unpraised(indexed uint256,indexed address,uint256,uint256)
+          handler: handleUnpraised
+      file: ./src/abraham.ts
