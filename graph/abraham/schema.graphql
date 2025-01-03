@@ -26,6 +26,17 @@ type ConvictionUpdated @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
+type Creation @entity {
+  id: ID!
+  creationId: BigInt!
+  metadataUri: String!
+  totalStaked: BigInt!
+  praisePool: BigInt!
+  conviction: BigInt!
+  createdAt: BigInt!
+  updatedAt: BigInt!
+}
+
 type CreationAdded @entity(immutable: true) {
   id: Bytes!
   creationId: BigInt! # uint256
