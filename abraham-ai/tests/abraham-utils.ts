@@ -6,8 +6,6 @@ import {
   ConvictionUpdated,
   CreationAdded,
   OwnershipTransferred,
-  PraiseListed,
-  PraiseSold,
   Praised,
   SoldManna,
   Transfer,
@@ -124,84 +122,6 @@ export function createOwnershipTransferredEvent(
   return ownershipTransferredEvent
 }
 
-export function createPraiseListedEvent(
-  listingId: BigInt,
-  creationId: BigInt,
-  seller: Address,
-  amount: BigInt,
-  pricePerPraise: BigInt
-): PraiseListed {
-  let praiseListedEvent = changetype<PraiseListed>(newMockEvent())
-
-  praiseListedEvent.parameters = new Array()
-
-  praiseListedEvent.parameters.push(
-    new ethereum.EventParam(
-      "listingId",
-      ethereum.Value.fromUnsignedBigInt(listingId)
-    )
-  )
-  praiseListedEvent.parameters.push(
-    new ethereum.EventParam(
-      "creationId",
-      ethereum.Value.fromUnsignedBigInt(creationId)
-    )
-  )
-  praiseListedEvent.parameters.push(
-    new ethereum.EventParam("seller", ethereum.Value.fromAddress(seller))
-  )
-  praiseListedEvent.parameters.push(
-    new ethereum.EventParam("amount", ethereum.Value.fromUnsignedBigInt(amount))
-  )
-  praiseListedEvent.parameters.push(
-    new ethereum.EventParam(
-      "pricePerPraise",
-      ethereum.Value.fromUnsignedBigInt(pricePerPraise)
-    )
-  )
-
-  return praiseListedEvent
-}
-
-export function createPraiseSoldEvent(
-  listingId: BigInt,
-  creationId: BigInt,
-  buyer: Address,
-  amount: BigInt,
-  totalCost: BigInt
-): PraiseSold {
-  let praiseSoldEvent = changetype<PraiseSold>(newMockEvent())
-
-  praiseSoldEvent.parameters = new Array()
-
-  praiseSoldEvent.parameters.push(
-    new ethereum.EventParam(
-      "listingId",
-      ethereum.Value.fromUnsignedBigInt(listingId)
-    )
-  )
-  praiseSoldEvent.parameters.push(
-    new ethereum.EventParam(
-      "creationId",
-      ethereum.Value.fromUnsignedBigInt(creationId)
-    )
-  )
-  praiseSoldEvent.parameters.push(
-    new ethereum.EventParam("buyer", ethereum.Value.fromAddress(buyer))
-  )
-  praiseSoldEvent.parameters.push(
-    new ethereum.EventParam("amount", ethereum.Value.fromUnsignedBigInt(amount))
-  )
-  praiseSoldEvent.parameters.push(
-    new ethereum.EventParam(
-      "totalCost",
-      ethereum.Value.fromUnsignedBigInt(totalCost)
-    )
-  )
-
-  return praiseSoldEvent
-}
-
 export function createPraisedEvent(
   creationId: BigInt,
   user: Address,
@@ -291,7 +211,8 @@ export function createUnpraisedEvent(
   creationId: BigInt,
   user: Address,
   unitsUnpraised: BigInt,
-  mannaRefunded: BigInt
+  mannaRefunded: BigInt,
+  unpraiseCost: BigInt
 ): Unpraised {
   let unpraisedEvent = changetype<Unpraised>(newMockEvent())
 
@@ -316,6 +237,12 @@ export function createUnpraisedEvent(
     new ethereum.EventParam(
       "mannaRefunded",
       ethereum.Value.fromUnsignedBigInt(mannaRefunded)
+    )
+  )
+  unpraisedEvent.parameters.push(
+    new ethereum.EventParam(
+      "unpraiseCost",
+      ethereum.Value.fromUnsignedBigInt(unpraiseCost)
     )
   )
 

@@ -26,17 +26,6 @@ type ConvictionUpdated @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
-type Creation @entity {
-  id: ID!
-  creationId: BigInt!
-  metadataUri: String!
-  totalStaked: BigInt!
-  praisePool: BigInt!
-  conviction: BigInt!
-  createdAt: BigInt!
-  updatedAt: BigInt!
-}
-
 type CreationAdded @entity(immutable: true) {
   id: Bytes!
   creationId: BigInt! # uint256
@@ -50,30 +39,6 @@ type OwnershipTransferred @entity(immutable: true) {
   id: Bytes!
   previousOwner: Bytes! # address
   newOwner: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type PraiseListed @entity(immutable: true) {
-  id: Bytes!
-  listingId: BigInt! # uint256
-  creationId: BigInt! # uint256
-  seller: Bytes! # address
-  amount: BigInt! # uint256
-  pricePerPraise: BigInt! # uint256
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type PraiseSold @entity(immutable: true) {
-  id: Bytes!
-  listingId: BigInt! # uint256
-  creationId: BigInt! # uint256
-  buyer: Bytes! # address
-  amount: BigInt! # uint256
-  totalCost: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -116,6 +81,7 @@ type Unpraised @entity(immutable: true) {
   user: Bytes! # address
   unitsUnpraised: BigInt! # uint256
   mannaRefunded: BigInt! # uint256
+  unpraiseCost: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!

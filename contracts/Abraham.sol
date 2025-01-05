@@ -42,7 +42,7 @@ contract Abraham is ERC20, Ownable {
         require(balanceOf(msg.sender) >= mannaAmount, "Not enough Manna to sell");
 
         // Calculate how much Ether the user should receive
-        uint256 ethAmount = (mannaAmount * MANNA_PRICE) / (10 ** 18);
+        uint256 ethAmount = (mannaAmount * MANNA_PRICE) / (1e18);
         require(address(this).balance >= ethAmount, "Contract lacks Ether for buyback");
         _burn(msg.sender, mannaAmount);
 
@@ -83,14 +83,22 @@ contract Abraham is ERC20, Ownable {
         mapping(address => uint256) stakeTime;
     }
 
+    struct Praise {
+        address user;
+        uint256 pricePaid;
+    }
+
     // Creation storage
     uint256 public creationCount;
     mapping(uint256 => Creation) public creations;
     uint256[] private _allCreationIds;
 
+    // Praise stacks per creation
+    mapping(uint256 => Praise[]) public praiseStacks;
+
     // Praise pricing
     uint256 public initPraisePrice   = 1e18; // 1 Manna
-    uint256 public initUnpraisePrice = 1e18; // 1 Manna
+    uint256 public initUnpraiseCost  = 0.1e18; // 0.1 Manna as unpraise cost
 
     event CreationAdded(uint256 indexed creationId, string metadataUri);
     event Praised(
@@ -103,33 +111,10 @@ contract Abraham is ERC20, Ownable {
         uint256 indexed creationId,
         address indexed user,
         uint256 unitsUnpraised,
-        uint256 mannaRefunded
+        uint256 mannaRefunded,
+        uint256 unpraiseCost
     );
     event ConvictionUpdated(uint256 indexed creationId, uint256 newConviction);
-
-    // Secondary market (sell/buy praise units) events and storage
-    struct PraiseListing {
-        uint256 creationId;
-        address seller;
-        uint256 amount;
-        uint256 pricePerPraise;
-    }
-    PraiseListing[] public praiseListings;
-
-    event PraiseListed(
-        uint256 listingId,
-        uint256 creationId,
-        address indexed seller,
-        uint256 amount,
-        uint256 pricePerPraise
-    );
-    event PraiseSold(
-        uint256 listingId,
-        uint256 creationId,
-        address indexed buyer,
-        uint256 amount,
-        uint256 totalCost
-    );
 
     function newCreation(string calldata metadataUri) external onlyOwner {
         creationCount++;
@@ -141,7 +126,6 @@ contract Abraham is ERC20, Ownable {
 
         emit CreationAdded(creationCount, metadataUri);
     }
-
  
     function praise(uint256 creationId) external {
         Creation storage c = creations[creationId];
@@ -160,11 +144,17 @@ contract Abraham is ERC20, Ownable {
         // Increase creation's pool
         c.praisePool += priceForOne;
 
+        // Push to praise stack
+        praiseStacks[creationId].push(Praise({
+            user: msg.sender,
+            pricePaid: priceForOne
+        }));
+
         // Update conviction
         _updateConvictionOnPraise(c, msg.sender);
 
-        c.totalStaked = currentStaked + 1;
-        c.praiseBalance[msg.sender]++;
+        c.totalStaked += 1;
+        c.praiseBalance[msg.sender] += 1;
 
         emit Praised(creationId, msg.sender, priceForOne, 1);
     }
@@ -174,70 +164,36 @@ contract Abraham is ERC20, Ownable {
         require(c.id > 0, "Creation does not exist");
         require(c.praiseBalance[msg.sender] > 0, "No praise to unpraise");
 
-        uint256 refundForOne = initUnpraisePrice;
-        require(c.praisePool >= refundForOne, "Not enough Manna in praise pool");
+        Praise[] storage stack = praiseStacks[creationId];
+        require(stack.length > 0, "No praises to unpraise");
+
+        Praise memory lastPraise = stack[stack.length - 1];
+        //require(lastPraise.user == msg.sender, "Last praise is not by caller");
+
+        // Calculate net refund
+        uint256 netRefund = lastPraise.pricePaid - initUnpraiseCost;
+
+        require(c.praisePool >= lastPraise.pricePaid, "Not enough Manna in praise pool");
+        require(balanceOf(address(this)) >= netRefund, "Contract lacks Manna for refund");
+
+        // Pop the last praise
+        stack.pop();
+
+        // Update praisePool and totalStaked
+        c.praisePool -= lastPraise.pricePaid;
+        c.totalStaked -= 1;
+        c.praiseBalance[msg.sender] -= 1;
+
+        // Transfer unpraise cost to contract owner\
+        _transfer(address(this), owner(), initUnpraiseCost);
+
+        // Transfer net Manna refund to the user
+        _transfer(address(this), msg.sender, netRefund);
 
         // Update conviction
         _updateConvictionOnUnpraise(c, msg.sender);
 
-        // Adjust balances
-        c.praiseBalance[msg.sender]--;
-        c.totalStaked--;
-        c.praisePool -= refundForOne;
-
-        // Transfer Manna refund to the user
-        _transfer(address(this), msg.sender, refundForOne);
-
-        emit Unpraised(creationId, msg.sender, 1, refundForOne);
-    }
-
-    /**
-     * @dev List some of your praises for sale (secondary market).
-     */
-    function listPraiseForSale(
-        uint256 creationId,
-        uint256 amount,
-        uint256 pricePerPraise
-    ) external {
-        Creation storage c = creations[creationId];
-        require(c.id > 0, "Creation does not exist");
-        require(c.praiseBalance[msg.sender] >= amount, "Insufficient praises to sell");
-
-        praiseListings.push(PraiseListing({
-            creationId: creationId,
-            seller: msg.sender,
-            amount: amount,
-            pricePerPraise: pricePerPraise
-        }));
-
-        uint256 listingId = praiseListings.length - 1;
-
-        emit PraiseListed(listingId, creationId, msg.sender, amount, pricePerPraise);
-    }
-
-    /**
-     * @dev Buy some praises from a listing (secondary market).
-     *      Payment is done in Manna from the buyer’s balance directly to the seller.
-     */
-    function buyPraise(uint256 listingId, uint256 amount) external {
-        PraiseListing storage listing = praiseListings[listingId];
-        require(listing.amount >= amount, "Not enough praises available in this listing");
-
-        uint256 totalCost = amount * listing.pricePerPraise;
-        require(balanceOf(msg.sender) >= totalCost, "Insufficient Manna to purchase praise");
-
-        // Transfer Manna from buyer to seller
-        _transfer(msg.sender, listing.seller, totalCost);
-
-        // Update praise balances
-        Creation storage c = creations[listing.creationId];
-        c.praiseBalance[msg.sender]     += amount;
-        c.praiseBalance[listing.seller] -= amount;
-
-        // Decrease the listing's available amount
-        listing.amount -= amount;
-
-        emit PraiseSold(listingId, listing.creationId, msg.sender, amount, totalCost);
+        emit Unpraised(creationId, msg.sender, 1, netRefund, initUnpraiseCost);
     }
 
     /**
@@ -314,10 +270,23 @@ contract Abraham is ERC20, Ownable {
         return _allCreationIds;
     }
 
+    // =========================================================================
+    // =                         ADMIN FUNCTIONS                               =
+    // =========================================================================
+
     /**
-     * @notice Returns the current array of praise listings.
+     * @notice Allows the owner to update the initial praise price.
+     * @param newPrice The new price in Manna for praising.
      */
-    function getPraiseListings() external view returns (PraiseListing[] memory) {
-        return praiseListings;
+    function setInitPraisePrice(uint256 newPrice) external onlyOwner {
+        initPraisePrice = newPrice;
+    }
+
+    /**
+     * @notice Allows the owner to update the unpraise cost.
+     * @param newCost The new cost in Manna for unpraising.
+     */
+    function setInitUnpraiseCost(uint256 newCost) external onlyOwner {
+        initUnpraiseCost = newCost;
     }
 }

@@ -171,80 +171,6 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "listingId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "creationId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "seller",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "pricePerPraise",
-        "type": "uint256"
-      }
-    ],
-    "name": "PraiseListed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "listingId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "creationId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "buyer",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "totalCost",
-        "type": "uint256"
-      }
-    ],
-    "name": "PraiseSold",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "uint256",
         "name": "creationId",
@@ -348,6 +274,12 @@
         "internalType": "uint256",
         "name": "mannaRefunded",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "unpraiseCost",
+        "type": "uint256"
       }
     ],
     "name": "Unpraised",
@@ -413,16 +345,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      { "internalType": "uint256", "name": "listingId", "type": "uint256" },
-      { "internalType": "uint256", "name": "amount", "type": "uint256" }
-    ],
-    "name": "buyPraise",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "creationCount",
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
@@ -475,33 +397,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getPraiseListings",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "creationId",
-            "type": "uint256"
-          },
-          { "internalType": "address", "name": "seller", "type": "address" },
-          { "internalType": "uint256", "name": "amount", "type": "uint256" },
-          {
-            "internalType": "uint256",
-            "name": "pricePerPraise",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct Abraham.PraiseListing[]",
-        "name": "",
-        "type": "tuple[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       { "internalType": "uint256", "name": "creationId", "type": "uint256" },
       { "internalType": "address", "name": "user", "type": "address" }
@@ -520,20 +415,9 @@
   },
   {
     "inputs": [],
-    "name": "initUnpraisePrice",
+    "name": "initUnpraiseCost",
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      { "internalType": "uint256", "name": "creationId", "type": "uint256" },
-      { "internalType": "uint256", "name": "amount", "type": "uint256" },
-      { "internalType": "uint256", "name": "pricePerPraise", "type": "uint256" }
-    ],
-    "name": "listPraiseForSale",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -569,13 +453,14 @@
     "type": "function"
   },
   {
-    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-    "name": "praiseListings",
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "name": "praiseStacks",
     "outputs": [
-      { "internalType": "uint256", "name": "creationId", "type": "uint256" },
-      { "internalType": "address", "name": "seller", "type": "address" },
-      { "internalType": "uint256", "name": "amount", "type": "uint256" },
-      { "internalType": "uint256", "name": "pricePerPraise", "type": "uint256" }
+      { "internalType": "address", "name": "user", "type": "address" },
+      { "internalType": "uint256", "name": "pricePaid", "type": "uint256" }
     ],
     "stateMutability": "view",
     "type": "function"
@@ -592,6 +477,24 @@
       { "internalType": "uint256", "name": "mannaAmount", "type": "uint256" }
     ],
     "name": "sellManna",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "newPrice", "type": "uint256" }
+    ],
+    "name": "setInitPraisePrice",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "newCost", "type": "uint256" }
+    ],
+    "name": "setInitUnpraiseCost",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
