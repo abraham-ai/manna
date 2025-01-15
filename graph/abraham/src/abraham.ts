@@ -1,4 +1,4 @@
-import { BigInt, Bytes, log } from "@graphprotocol/graph-ts";
+import { BigInt } from "@graphprotocol/graph-ts";
 import {
   Approval as ApprovalEvent,
   BoughtManna as BoughtMannaEvent,
@@ -24,9 +24,13 @@ import {
   Unpraised,
 } from "../generated/schema";
 
-// -------------------------------------
-// handleApproval
-// -------------------------------------
+const INIT_PRAISE_PRICE = BigInt.fromString("1000000000000000000");
+
+// A small helper to compute the *next* praise price in subgraph
+function computeNextPraisePrice(totalStaked: BigInt): BigInt {
+  return INIT_PRAISE_PRICE.plus(totalStaked.times(INIT_PRAISE_PRICE));
+}
+
 export function handleApproval(event: ApprovalEvent): void {
   let entity = new Approval(
     event.transaction.hash.concatI32(event.logIndex.toI32())
@@ -42,9 +46,6 @@ export function handleApproval(event: ApprovalEvent): void {
   entity.save();
 }
 
-// -------------------------------------
-// handleBoughtManna
-// -------------------------------------
 export function handleBoughtManna(event: BoughtMannaEvent): void {
   let entity = new BoughtManna(
     event.transaction.hash.concatI32(event.logIndex.toI32())
@@ -59,11 +60,8 @@ export function handleBoughtManna(event: BoughtMannaEvent): void {
   entity.save();
 }
 
-// -------------------------------------
-// handleConvictionUpdated
-// -------------------------------------
 export function handleConvictionUpdated(event: ConvictionUpdatedEvent): void {
-  // 1. Save the ConvictionUpdated event (immutable log)
+  // Store the event
   let convictionEntity = new ConvictionUpdated(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -74,9 +72,8 @@ export function handleConvictionUpdated(event: ConvictionUpdatedEvent): void {
   convictionEntity.transactionHash = event.transaction.hash;
   convictionEntity.save();
 
-  // 2. Update the Creation entity
-  let creationIdString = event.params.creationId.toString();
-  let creation = Creation.load(creationIdString);
+  // Update the Creation
+  let creation = Creation.load(event.params.creationId.toString());
   if (creation !== null) {
     creation.conviction = event.params.newConviction;
     creation.updatedAt = event.block.timestamp;
@@ -84,16 +81,11 @@ export function handleConvictionUpdated(event: ConvictionUpdatedEvent): void {
   }
 }
 
-// -------------------------------------
-// handleCreationAdded
-// -------------------------------------
 export function handleCreationAdded(event: CreationAddedEvent): void {
-  let creationIdString = event.params.creationId.toString();
-
-  // 1. Create or load Creation entity
-  let creation = Creation.load(creationIdString);
+  let creationId = event.params.creationId.toString();
+  let creation = Creation.load(creationId);
   if (creation == null) {
-    creation = new Creation(creationIdString);
+    creation = new Creation(creationId);
     creation.creationId = event.params.creationId;
     creation.metadataUri = event.params.metadataUri;
     creation.totalStaked = BigInt.zero();
@@ -101,10 +93,13 @@ export function handleCreationAdded(event: CreationAddedEvent): void {
     creation.conviction = BigInt.zero();
     creation.createdAt = event.block.timestamp;
     creation.updatedAt = event.block.timestamp;
+
+    // NEW: when first created, totalStaked=0 => the cost for the next praise is initPraisePrice
+    creation.currentPriceToPraise = INIT_PRAISE_PRICE;
+
     creation.save();
   }
 
-  // 2. Save the immutable event
   let eventEntity = new CreationAdded(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -116,9 +111,6 @@ export function handleCreationAdded(event: CreationAddedEvent): void {
   eventEntity.save();
 }
 
-// -------------------------------------
-// handleOwnershipTransferred
-// -------------------------------------
 export function handleOwnershipTransferred(
   event: OwnershipTransferredEvent
 ): void {
@@ -127,19 +119,14 @@ export function handleOwnershipTransferred(
   );
   entity.previousOwner = event.params.previousOwner;
   entity.newOwner = event.params.newOwner;
-
   entity.blockNumber = event.block.number;
   entity.blockTimestamp = event.block.timestamp;
   entity.transactionHash = event.transaction.hash;
-
   entity.save();
 }
 
-// -------------------------------------
-// handlePraised
-// -------------------------------------
 export function handlePraised(event: PraisedEvent): void {
-  // 1. Save the Praised event (immutable)
+  // 1. Save immutable event
   let praisedEntity = new Praised(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -152,36 +139,46 @@ export function handlePraised(event: PraisedEvent): void {
   praisedEntity.transactionHash = event.transaction.hash;
   praisedEntity.save();
 
-  // 2. Update the Creation entity
-  let creationIdString = event.params.creationId.toString();
-  let creation = Creation.load(creationIdString);
+  // 2. Update the Creation
+  let creationId = event.params.creationId.toString();
+  let creation = Creation.load(creationId);
   if (creation !== null) {
+    // Increase totalStaked by the # of praises
     creation.totalStaked = creation.totalStaked.plus(event.params.unitsPraised);
+
+    // Increase praisePool
     creation.praisePool = creation.praisePool.plus(event.params.pricePaid);
+
+    // Recompute the *next* price for praising
+    creation.currentPriceToPraise = computeNextPraisePrice(
+      creation.totalStaked
+    );
+
     creation.updatedAt = event.block.timestamp;
     creation.save();
   }
 
-  // 3. Update the aggregated PraiseCount
-  let praiseCountId = creationIdString + "-" + event.params.user.toHexString();
+  // 3. Update PraiseCount
+  let praiseCountId = creationId + "-" + event.params.user.toHexString();
   let praiseCount = PraiseCount.load(praiseCountId);
   if (praiseCount == null) {
     praiseCount = new PraiseCount(praiseCountId);
-    // This must match the Creation's id exactly
-    praiseCount.creation = creationIdString;
+    praiseCount.creation = creationId; // must match Creation.id
     praiseCount.userAddress = event.params.user;
     praiseCount.noOfPraises = event.params.unitsPraised;
+    praiseCount.mannaStaked = event.params.pricePaid;
   } else {
     praiseCount.noOfPraises = praiseCount.noOfPraises.plus(
       event.params.unitsPraised
+    );
+    // Increase the user's total staked Manna by pricePaid
+    praiseCount.mannaStaked = praiseCount.mannaStaked.plus(
+      event.params.pricePaid
     );
   }
   praiseCount.save();
 }
 
-// -------------------------------------
-// handleSoldManna
-// -------------------------------------
 export function handleSoldManna(event: SoldMannaEvent): void {
   let entity = new SoldManna(
     event.transaction.hash.concatI32(event.logIndex.toI32())
@@ -195,9 +192,6 @@ export function handleSoldManna(event: SoldMannaEvent): void {
   entity.save();
 }
 
-// -------------------------------------
-// handleTransfer
-// -------------------------------------
 export function handleTransfer(event: TransferEvent): void {
   let entity = new Transfer(
     event.transaction.hash.concatI32(event.logIndex.toI32())
@@ -211,11 +205,8 @@ export function handleTransfer(event: TransferEvent): void {
   entity.save();
 }
 
-// -------------------------------------
-// handleUnpraised
-// -------------------------------------
 export function handleUnpraised(event: UnpraisedEvent): void {
-  // 1. Save the Unpraised event (immutable)
+  // 1. Save immutable event
   let unpraisedEntity = new Unpraised(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -229,30 +220,48 @@ export function handleUnpraised(event: UnpraisedEvent): void {
   unpraisedEntity.transactionHash = event.transaction.hash;
   unpraisedEntity.save();
 
-  // 2. Update the Creation entity
-  let creationIdString = event.params.creationId.toString();
-  let creation = Creation.load(creationIdString);
+  // 2. Update the Creation
+  let creationId = event.params.creationId.toString();
+  let creation = Creation.load(creationId);
   if (creation !== null) {
+    // Decrement totalStaked
     creation.totalStaked = creation.totalStaked.minus(
       event.params.unitsUnpraised
     );
+
+    // Subtract from praisePool
     creation.praisePool = creation.praisePool.minus(event.params.mannaRefunded);
+
+    // Recompute the *next* price for praising
+    creation.currentPriceToPraise = computeNextPraisePrice(
+      creation.totalStaked
+    );
+
     creation.updatedAt = event.block.timestamp;
     creation.save();
   }
 
-  // 3. Update the aggregated PraiseCount
-  let praiseCountId = creationIdString + "-" + event.params.user.toHexString();
+  // 3. Update PraiseCount
+  let praiseCountId = creationId + "-" + event.params.user.toHexString();
   let praiseCount = PraiseCount.load(praiseCountId);
   if (praiseCount !== null) {
     praiseCount.noOfPraises = praiseCount.noOfPraises.minus(
       event.params.unitsUnpraised
     );
-
-    // Avoid negative values (just a safety check)
+    // never go below zero
     if (praiseCount.noOfPraises < BigInt.zero()) {
       praiseCount.noOfPraises = BigInt.zero();
     }
+
+    // Decrease user's mannaStaked by `mannaRefunded`
+    praiseCount.mannaStaked = praiseCount.mannaStaked.minus(
+      event.params.mannaRefunded
+    );
+    // never go below zero
+    if (praiseCount.mannaStaked < BigInt.zero()) {
+      praiseCount.mannaStaked = BigInt.zero();
+    }
+
     praiseCount.save();
   }
 }

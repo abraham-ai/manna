@@ -50,6 +50,7 @@ type Creation @entity {
   totalStaked: BigInt! # The total # of praises staked
   praisePool: BigInt! # The total Manna stored in the pool for this creation
   conviction: BigInt! # The aggregated conviction for this creation
+  currentPriceToPraise: BigInt! # The current price to praise
   createdAt: BigInt! # The timestamp when the creation was added
   updatedAt: BigInt! # The timestamp of the last update to this creation
   praises: [PraiseCount!]! @derivedFrom(field: "creation")
@@ -71,6 +72,7 @@ type PraiseCount @entity {
   creation: Creation!
   userAddress: Bytes!
   noOfPraises: BigInt!
+  mannaStaked: BigInt!
 }
 
 type SoldManna @entity(immutable: true) {
